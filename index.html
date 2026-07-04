@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>拼豆图纸转换器 - Perler Bead Pattern Converter</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ===== 头部 ===== -->
+  <header class="header">
+    <h1><span class="icon">🔲</span>拼豆图纸转换器</h1>
+    <p>上传图片 → 像素化 → 自动匹配 Hama 色号</p>
+  </header>
+
+  <main class="container">
+
+    <!-- ===== 上传区 ===== -->
+    <div class="upload-card">
+      <div class="dropzone" id="dropZone">
+        <div class="placeholder-content" id="uploadPlaceholder">
+          <span class="upload-icon">📤</span>
+          <span class="upload-text">点击上传或拖拽图片到这里</span>
+          <span class="upload-hint">支持 JPG / PNG / WebP / BMP</span>
+        </div>
+        <div class="upload-preview hidden" id="uploadPreview">
+          <img id="previewImg" alt="预览">
+          <button class="change-btn" onclick="document.getElementById('fileInput').click()">🔄 更换图片</button>
+        </div>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" hidden>
+    </div>
+
+    <!-- ===== 控制区 ===== -->
+    <div class="controls-card hidden" id="controls">
+      <div class="control-row">
+        <span class="control-label">🎯 像素粒度</span>
+        <input type="range" class="control-slider" id="pixelCount" min="4" max="64" value="32" step="2">
+        <span class="control-value" id="pixelCountValue">32</span>
+      </div>
+      <div class="presets">
+        <button class="preset-btn active" data-size="64">精细 64</button>
+        <button class="preset-btn" data-size="48">较细 48</button>
+        <button class="preset-btn" data-size="32">适中 32</button>
+        <button class="preset-btn" data-size="24">中等 24</button>
+        <button class="preset-btn" data-size="16">卡通 16</button>
+        <button class="preset-btn" data-size="8">极简 8</button>
+      </div>
+      <div class="toggles">
+        <label class="toggle-item">
+          <input type="checkbox" id="showGrid" checked> 显示网格线
+        </label>
+        <label class="toggle-item">
+          <input type="checkbox" id="showLabels" checked> 显示色号标签
+        </label>
+      </div>
+    </div>
+
+    <!-- ===== 结果区 ===== -->
+    <div id="emptyState" class="empty-state">
+      <span class="empty-icon">🎨</span>
+      <p>上传图片后这里会显示像素化图纸</p>
+    </div>
+
+    <div class="result-area hidden" id="resultArea">
+      <!-- 像素图 -->
+      <div class="result-panel">
+        <canvas id="outputCanvas"></canvas>
+      </div>
+
+      <!-- 色号清单 -->
+      <div class="stats-panel">
+        <div class="stats-header">
+          <h3>📋 色号清单</h3>
+          <div class="stats-summary">
+            共 <span id="totalBeads">0</span> 颗
+            <span id="totalColors">0</span> 色
+          </div>
+        </div>
+        <div class="stats-list" id="statsList">
+          <!-- 动态填充 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 操作按钮 ===== -->
+    <div class="action-bar">
+      <button class="btn btn-primary" id="btnExport">📥 导出 PNG 图纸</button>
+      <button class="btn btn-secondary" id="btnCopy">📋 复制色号清单</button>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    拼豆图纸转换器 · Hama Midi Beads · 67 种颜色（含透明）
+  </footer>
+
+  <!-- ===== JS ===== -->
+  <script src="js/palette.js"></script>
+  <script src="js/pixelizer.js"></script>
+  <script src="js/color-matcher.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
