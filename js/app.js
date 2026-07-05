@@ -7,7 +7,7 @@ const App = (() => {
   let currentPixels = null;
   let currentMatchResult = null;
   let currentPixelCount = 32;
-  let displayScale = 2;  // 显示缩放：1/1.5/2
+  let displayScale = 1.5;  // 显示缩放：0.5/1/1.5/2/2.5/3
 
   // ============ DOM 元素 ============
   const dropZone = document.getElementById('dropZone');
@@ -79,7 +79,7 @@ const App = (() => {
   }
 
   function changeZoom(delta) {
-    displayScale = Math.max(1, Math.min(3, displayScale + delta));
+    displayScale = Math.max(0.5, Math.min(3, displayScale + delta));
     zoomValue.textContent = displayScale.toFixed(1) + '×';
     rerender();
   }
@@ -153,7 +153,9 @@ const App = (() => {
     const showLabels = showLabelsCheck.checked;
 
     // 基础单元格大小：屏幕越大格子越大，上限 24px（保证画布不溢出太多）
-    const baseCell = Math.max(8, Math.min(24, Math.floor(650 / N)));
+    // 自适应：手机屏幕约 375px，减去内边距可用 ~340px
+    const avail = Math.min(window.innerWidth - 60, 650);
+    const baseCell = Math.max(4, Math.min(24, Math.floor(avail / N)));
     const cellSize = baseCell * displayScale;
     const canvasSize = N * cellSize;
 
