@@ -125,7 +125,7 @@ const App = (() => {
   async function repixelate() {
     if (!currentImage) return;
     currentPixels = Pixelizer.pixelate(currentImage, currentPixelCount);
-    currentMatchResult = ColorMatcher.matchMatrix(currentPixels.pixels, HAMA_PALETTE);
+    currentMatchResult = ColorMatcher.matchMatrix(currentPixels.pixels, MARD_PALETTE);
     renderAll();
   }
 
