@@ -3,10 +3,11 @@
  */
 const App = (() => {
   // ============ 状态 ============
-  let currentImage = null;          // 当前上传的原始图片
-  let currentPixels = null;        // 像素化后的原始像素数据
-  let currentMatchResult = null;   // 颜色匹配结果 { matrix, stats }
-  let currentPixelCount = 32;      // 当前像素粒度
+  let currentImage = null;
+  let currentPixels = null;
+  let currentMatchResult = null;
+  let currentPixelCount = 32;
+  let displayScale = 2;  // 显示缩放：1/1.5/2
 
   // ============ DOM 元素 ============
   const dropZone = document.getElementById('dropZone');
@@ -20,6 +21,7 @@ const App = (() => {
   const showGridCheck = document.getElementById('showGrid');
   const showLabelsCheck = document.getElementById('showLabels');
   const outputCanvas = document.getElementById('outputCanvas');
+  const canvasWrapper = document.getElementById('canvasWrapper');
   const statsList = document.getElementById('statsList');
   const totalBeads = document.getElementById('totalBeads');
   const totalColors = document.getElementById('totalColors');
@@ -27,24 +29,37 @@ const App = (() => {
   const btnCopy = document.getElementById('btnCopy');
   const emptyState = document.getElementById('emptyState');
   const resultArea = document.getElementById('resultArea');
+  const zoomValue = document.getElementById('zoomValue');
+  const zoomMinus = document.getElementById('zoomMinus');
+  const zoomPlus = document.getElementById('zoomPlus');
+  const exportModal = document.getElementById('exportModal');
+  const exportImage = document.getElementById('exportImage');
+  const btnCloseModal = document.getElementById('btnCloseModal');
 
   // ============ 初始化 ============
   function init() {
-    // 上传事件
     dropZone.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', handleFileSelect);
     dropZone.addEventListener('dragover', handleDragOver);
     dropZone.addEventListener('dragleave', handleDragLeave);
     dropZone.addEventListener('drop', handleDrop);
 
-    // 控制事件
     pixelCountSlider.addEventListener('input', handlePixelCountChange);
     showGridCheck.addEventListener('change', rerender);
     showLabelsCheck.addEventListener('change', rerender);
 
-    // 按钮事件
     btnExport.addEventListener('click', exportPNG);
     btnCopy.addEventListener('click', copyStats);
+
+    // 缩放控制
+    zoomMinus.addEventListener('click', () => changeZoom(-0.5));
+    zoomPlus.addEventListener('click', () => changeZoom(+0.5));
+
+    // 导出弹窗关闭
+    btnCloseModal.addEventListener('click', () => exportModal.classList.add('hidden'));
+    exportModal.addEventListener('click', (e) => {
+      if (e.target === exportModal) exportModal.classList.add('hidden');
+    });
 
     // 预设粒度按钮
     document.querySelectorAll('.preset-btn').forEach(btn => {
@@ -63,27 +78,27 @@ const App = (() => {
     });
   }
 
+  function changeZoom(delta) {
+    displayScale = Math.max(1, Math.min(3, displayScale + delta));
+    zoomValue.textContent = displayScale.toFixed(1) + '×';
+    rerender();
+  }
+
   // ============ 文件处理 ============
   function handleDragOver(e) {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     dropZone.classList.add('dragover');
   }
-
   function handleDragLeave(e) {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     dropZone.classList.remove('dragover');
   }
-
   function handleDrop(e) {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     dropZone.classList.remove('dragover');
     const file = e.dataTransfer.files[0];
     if (file) processFile(file);
   }
-
   function handleFileSelect(e) {
     const file = e.target.files[0];
     if (file) processFile(file);
@@ -93,16 +108,12 @@ const App = (() => {
     try {
       const img = await Pixelizer.loadImage(file);
       currentImage = img;
-
-      // 显示预览缩略图
       previewImg.src = URL.createObjectURL(file);
       uploadPlaceholder.classList.add('hidden');
       uploadPreview.classList.remove('hidden');
       controls.classList.remove('hidden');
       resultArea.classList.remove('hidden');
       emptyState.classList.add('hidden');
-
-      // 执行像素化
       await repixelate();
     } catch (err) {
       alert('图片处理失败：' + err.message);
@@ -110,17 +121,11 @@ const App = (() => {
     }
   }
 
-  // ============ 像素化 + 匹配流程 ============
+  // ============ 像素化 + 匹配 ============
   async function repixelate() {
     if (!currentImage) return;
-
-    // 像素化
     currentPixels = Pixelizer.pixelate(currentImage, currentPixelCount);
-
-    // 颜色匹配
     currentMatchResult = ColorMatcher.matchMatrix(currentPixels.pixels, HAMA_PALETTE);
-
-    // 渲染
     renderAll();
   }
 
@@ -138,47 +143,38 @@ const App = (() => {
   }
 
   function rerender() {
-    if (currentMatchResult) {
-      renderCanvas();
-    }
+    if (currentMatchResult) renderCanvas();
   }
 
   function renderCanvas() {
     const { matrix } = currentMatchResult;
-    const rows = matrix.length;
-    const cols = matrix[0].length;
+    const N = matrix.length; // 正方形
     const showGrid = showGridCheck.checked;
     const showLabels = showLabelsCheck.checked;
 
-    // 计算单元格大小：适应 500px 显示区域
-    const maxDisplay = 500;
-    const cellSize = Math.floor(maxDisplay / Math.max(rows, cols));
-    const canvasW = cols * cellSize;
-    const canvasH = rows * cellSize;
+    // 基础单元格大小：屏幕越大格子越大，上限 24px（保证画布不溢出太多）
+    const baseCell = Math.max(8, Math.min(24, Math.floor(650 / N)));
+    const cellSize = baseCell * displayScale;
+    const canvasSize = N * cellSize;
 
-    outputCanvas.width = canvasW;
-    outputCanvas.height = canvasH;
-    outputCanvas.style.width = canvasW + 'px';
-    outputCanvas.style.height = canvasH + 'px';
+    outputCanvas.width = canvasSize;
+    outputCanvas.height = canvasSize;
+    outputCanvas.style.width = canvasSize + 'px';
+    outputCanvas.style.height = canvasSize + 'px';
 
     const ctx = outputCanvas.getContext('2d');
+    ctx.clearRect(0, 0, canvasSize, canvasSize);
 
-    // 绘制像素色块
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
+    // 绘制色块
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
         const match = matrix[y][x];
         const px = x * cellSize;
         const py = y * cellSize;
 
-        if (match) {
-          ctx.fillStyle = match.hex;
-        } else {
-          // 透明像素用棋盘格表示
-          ctx.fillStyle = ((x + y) % 2 === 0) ? '#FFFFFF' : '#E0E0E0';
-        }
+        ctx.fillStyle = match ? match.hex : (((x + y) % 2 === 0) ? '#FFFFFF' : '#E0E0E0');
         ctx.fillRect(px, py, cellSize, cellSize);
 
-        // 网格线
         if (showGrid && cellSize > 4) {
           ctx.strokeStyle = 'rgba(0,0,0,0.15)';
           ctx.lineWidth = 0.5;
@@ -187,11 +183,10 @@ const App = (() => {
       }
     }
 
-    // 色号标签（单元格 ≥ 12px 时显示，太密则只显示文字不描边）
-    if (showLabels && cellSize >= 12) {
-      const tiny = cellSize < 18; // 密集模式：缩小字体、省去描边
-      for (let y = 0; y < rows; y++) {
-        for (let x = 0; x < cols; x++) {
+    // 色号标签（单元格达到 16px 才显示，保证可读）
+    if (showLabels && cellSize >= 16) {
+      for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
           const match = matrix[y][x];
           if (!match) continue;
 
@@ -201,21 +196,20 @@ const App = (() => {
           const cy = py + cellSize / 2;
 
           const [cr, cg, cb] = match.rgb;
-          const luminance = 0.299 * cr + 0.587 * cg + 0.114 * cb;
-          ctx.fillStyle = luminance > 150 ? '#000000' : '#FFFFFF';
+          const lum = 0.299 * cr + 0.587 * cg + 0.114 * cb;
 
-          const fontSize = tiny
-            ? Math.max(6, cellSize * 0.52)   // 密集：6-9px，最大化利用空间
-            : Math.max(9, Math.min(12, cellSize * 0.4));
-          ctx.font = `bold ${fontSize}px "Segoe UI", Arial, sans-serif`;
+          // 字体大小自适应
+          const fontSize = Math.max(9, Math.min(14, cellSize * 0.45));
+          ctx.font = `bold ${fontSize}px "Segoe UI", "PingFang SC", Arial, sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
 
-          if (!tiny) {
-            ctx.strokeStyle = luminance > 150 ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.5)';
-            ctx.lineWidth = 2;
-            ctx.strokeText(match.code, cx, cy);
-          }
+          // 文字描边
+          ctx.strokeStyle = lum > 140 ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.45)';
+          ctx.lineWidth = Math.max(1.5, cellSize * 0.1);
+          ctx.strokeText(match.code, cx, cy);
+
+          ctx.fillStyle = lum > 140 ? '#111' : '#FFF';
           ctx.fillText(match.code, cx, cy);
         }
       }
@@ -231,10 +225,8 @@ const App = (() => {
 
     sorted.forEach(([code, { color, count }]) => {
       total += count;
-
       const item = document.createElement('div');
       item.className = 'stats-item';
-
       item.innerHTML = `
         <span class="stats-color" style="background:${color.hex}"></span>
         <span class="stats-code">${code}</span>
@@ -247,32 +239,28 @@ const App = (() => {
     totalBeads.textContent = total;
     totalColors.textContent = sorted.length;
 
-    // 如果都是空像素，显示提示
     if (sorted.length === 0) {
       statsList.innerHTML = '<div class="stats-empty">图片过于透明，无法匹配</div>';
     }
   }
 
-  // ============ 导出 ============
+  // ============ 导出（适配手机） ============
   function exportPNG() {
     if (!currentMatchResult) return;
 
-    // 创建一个不含标签的新 canvas（纯像素图 + 网格线）
     const { matrix } = currentMatchResult;
-    const rows = matrix.length;
-    const cols = matrix[0].length;
-    const cellSize = 20; // 导出固定 20px 每格，清晰度高
+    const N = matrix.length;
+    const cellSize = 24; // 导出固定 24px/格，每格都很清楚
     const showGrid = showGridCheck.checked;
     const showLabels = showLabelsCheck.checked;
 
-    const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = cols * cellSize;
-    exportCanvas.height = rows * cellSize;
-    const ctx = exportCanvas.getContext('2d');
+    const expCanvas = document.createElement('canvas');
+    expCanvas.width = N * cellSize;
+    expCanvas.height = N * cellSize;
+    const ctx = expCanvas.getContext('2d');
 
-    // 绘制
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
         const match = matrix[y][x];
         const px = x * cellSize;
         const py = y * cellSize;
@@ -288,30 +276,34 @@ const App = (() => {
       }
     }
 
-    // 标签
     if (showLabels) {
-      for (let y = 0; y < rows; y++) {
-        for (let x = 0; x < cols; x++) {
+      for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
           const match = matrix[y][x];
           if (!match) continue;
           const px = x * cellSize;
           const py = y * cellSize;
           const [cr, cg, cb] = match.rgb;
           const lum = 0.299 * cr + 0.587 * cg + 0.114 * cb;
-          ctx.fillStyle = lum > 150 ? '#000' : '#FFF';
-          ctx.font = 'bold 9px "Segoe UI", Arial, sans-serif';
+
+          ctx.fillStyle = lum > 140 ? '#111' : '#FFF';
+          ctx.font = 'bold 10px "Segoe UI", "PingFang SC", Arial, sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
+
+          ctx.strokeStyle = lum > 140 ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.4)';
+          ctx.lineWidth = 2;
+          ctx.strokeText(match.code, px + cellSize / 2, py + cellSize / 2);
           ctx.fillText(match.code, px + cellSize / 2, py + cellSize / 2);
         }
       }
     }
 
-    // 下载
-    const link = document.createElement('a');
-    link.download = `拼豆图纸_${cols}x${rows}.png`;
-    link.href = exportCanvas.toDataURL('image/png');
-    link.click();
+    const dataUrl = expCanvas.toDataURL('image/png');
+
+    // 手机弹窗展示图片，长按保存到相册
+    exportImage.src = dataUrl;
+    exportModal.classList.remove('hidden');
   }
 
   function copyStats() {
@@ -322,7 +314,7 @@ const App = (() => {
 
     let text = '拼豆色号清单\n';
     text += '══════════════\n';
-    text += `尺寸: ${currentMatchResult.matrix[0].length} × ${currentMatchResult.matrix.length}\n`;
+    text += `尺寸: ${currentMatchResult.matrix.length} × ${currentMatchResult.matrix.length}\n`;
     text += `总颗数: ${sorted.reduce((s, [,v]) => s + v.count, 0)} | 颜色数: ${sorted.length}\n`;
     text += '──────────────────\n';
 
@@ -342,5 +334,4 @@ const App = (() => {
   return { init };
 })();
 
-// 页面加载完成后启动
 document.addEventListener('DOMContentLoaded', () => App.init());

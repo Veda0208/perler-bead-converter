@@ -1,6 +1,6 @@
 /**
  * 图片像素化核心算法
- * 将上传的图片按目标像素粒度缩放到像素风格
+ * 将上传的图片中心裁剪为正方形后缩放到像素风格
  */
 const Pixelizer = (() => {
 
@@ -26,59 +26,59 @@ const Pixelizer = (() => {
   }
 
   /**
-   * 计算等比例缩放后的尺寸（保持宽高比，以较大边为准）
-   * @returns {{ width: number, height: number }}
+   * 中心裁剪为正方形
+   * 取图片中心最大的正方形区域
    */
-  function calcFitSize(imgW, imgH, pixelCount) {
-    const ratio = imgW / imgH;
-    let w, h;
-    if (ratio >= 1) {
-      // 横图或正方形
-      w = pixelCount;
-      h = Math.round(pixelCount / ratio);
-    } else {
-      // 竖图
-      h = pixelCount;
-      w = Math.round(pixelCount * ratio);
-    }
-    // 确保至少 1 像素
-    return { width: Math.max(1, w), height: Math.max(1, h) };
+  function cropToSquare(img) {
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    const size = Math.min(w, h);
+    const sx = (w - size) / 2;
+    const sy = (h - size) / 2;
+
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = size;
+    cropCanvas.height = size;
+    const ctx = cropCanvas.getContext('2d');
+    ctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
+    return cropCanvas;
   }
 
   /**
-   * 核心：将图片像素化，返回每个像素的 RGBA 数组
+   * 核心：将图片中心裁剪为正方形后像素化
    * @param {HTMLImageElement} img - 原始图片
-   * @param {number} pixelCount - 较长边的像素数（如 32 表示 32x???）
+   * @param {number} pixelCount - 目标像素数（N×N 正方形）
    * @returns {{ pixels: number[][], width: number, height: number }} 二维数组
    */
   function pixelate(img, pixelCount) {
-    const { width: pw, height: ph } = calcFitSize(img.naturalWidth, img.naturalHeight, pixelCount);
+    // 先裁成正方形
+    const square = cropToSquare(img);
 
-    // Step 1: 缩小 → 用离屏 canvas 缩小到目标像素尺寸
+    // 缩小到目标像素尺寸
     const shrinkCanvas = document.createElement('canvas');
-    shrinkCanvas.width = pw;
-    shrinkCanvas.height = ph;
+    shrinkCanvas.width = pixelCount;
+    shrinkCanvas.height = pixelCount;
     const shrinkCtx = shrinkCanvas.getContext('2d');
-    shrinkCtx.imageSmoothingEnabled = true;  // 缩小时用平滑，保留色彩信息
-    shrinkCtx.drawImage(img, 0, 0, pw, ph);
+    shrinkCtx.imageSmoothingEnabled = true;
+    shrinkCtx.drawImage(square, 0, 0, pixelCount, pixelCount);
 
-    // 读取缩小后的像素数据
-    const imageData = shrinkCtx.getImageData(0, 0, pw, ph);
+    // 读取像素数据
+    const imageData = shrinkCtx.getImageData(0, 0, pixelCount, pixelCount);
     const data = imageData.data;
 
-    // Step 2: 组装二维数组
+    // 组装二维数组
     const pixels = [];
-    for (let y = 0; y < ph; y++) {
+    for (let y = 0; y < pixelCount; y++) {
       const row = [];
-      for (let x = 0; x < pw; x++) {
-        const idx = (y * pw + x) * 4;
+      for (let x = 0; x < pixelCount; x++) {
+        const idx = (y * pixelCount + x) * 4;
         row.push([data[idx], data[idx + 1], data[idx + 2], data[idx + 3]]);
       }
       pixels.push(row);
     }
 
-    return { pixels, width: pw, height: ph };
+    return { pixels, width: pixelCount, height: pixelCount };
   }
 
-  return { loadImage, pixelate, calcFitSize };
+  return { loadImage, pixelate };
 })();
