@@ -187,8 +187,9 @@ const App = (() => {
       }
     }
 
-    // 色号标签（仅在单元格足够大时显示）
-    if (showLabels && cellSize >= 24) {
+    // 色号标签（单元格 ≥ 12px 时显示，太密则只显示文字不描边）
+    if (showLabels && cellSize >= 12) {
+      const tiny = cellSize < 18; // 密集模式：缩小字体、省去描边
       for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
           const match = matrix[y][x];
@@ -199,21 +200,22 @@ const App = (() => {
           const cx = px + cellSize / 2;
           const cy = py + cellSize / 2;
 
-          // 判断背景亮度来决定文字颜色
           const [cr, cg, cb] = match.rgb;
           const luminance = 0.299 * cr + 0.587 * cg + 0.114 * cb;
           ctx.fillStyle = luminance > 150 ? '#000000' : '#FFFFFF';
 
-          // 色号文字
-          const fontSize = Math.max(8, Math.min(11, cellSize * 0.38));
+          const fontSize = tiny
+            ? Math.max(6, cellSize * 0.52)   // 密集：6-9px，最大化利用空间
+            : Math.max(9, Math.min(12, cellSize * 0.4));
           ctx.font = `bold ${fontSize}px "Segoe UI", Arial, sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
 
-          // 文字描边增强可读性
-          ctx.strokeStyle = luminance > 150 ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
-          ctx.lineWidth = 2;
-          ctx.strokeText(match.code, cx, cy);
+          if (!tiny) {
+            ctx.strokeStyle = luminance > 150 ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.5)';
+            ctx.lineWidth = 2;
+            ctx.strokeText(match.code, cx, cy);
+          }
           ctx.fillText(match.code, cx, cy);
         }
       }
